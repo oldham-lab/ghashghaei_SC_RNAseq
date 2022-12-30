@@ -1,0 +1,11 @@
+###############################################################
+# @Author: Evan Walsh
+# @Date: 11/2/2021
+# @File: README.txt
+# Description of sc- and bulk- RNAseq files and folders transfered 
+###############################################################
+
+1) Directories: contain the gzipped fastq files and SampleSheet.csv files from each sequencing run performed. The directory name is the sequeuncing run ID.
+2) *.fastq.gz: demultiplexed fastq files for each sample sequenced in run. The sample name is the first portion of the fastq file name.
+3) SampleSheet.csv: file used to demultiplex bcl files into fastq files. (Demultiplexing has already been performed, SampleSheet.csv files may still contain important metadta.)
+4) SequencingRunID.md5sum: contains hash IDs for each fastq file. Can you used to validate that no files were corrupted in the transfer process.
