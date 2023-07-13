@@ -1,4 +1,4 @@
-*.tar
-raw_reads/*
+raw_data/*
 aligned_reads/*
 counts/*
+*.tar

@@ -23,8 +23,8 @@ for run_date in ("190322" "190501" "210604" "210614"); do
     --sample=$ea \
     --transcriptome=$ref \
     --localcores=13
-  done;
-done;
+  done
+done
 
 ## QC:
 

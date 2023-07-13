@@ -1,0 +1,26 @@
+customclassif,Phase,No.CT_Phase_Nuclei,No.Total_CT_Nuclei,Percent_CT_Phase_Nuclei
+GABAergic neurons,G1,9403,9837,95.5880857985158
+GABAergic neurons,G2M,43,9837,0.437125139778388
+GABAergic neurons,S,391,9837,3.9747890617058
+Immature neurons,G1,10526,10654,98.7985733058007
+Immature neurons,G2M,13,10654,0.122019898629623
+Immature neurons,S,115,10654,1.07940679556974
+Mature neurons,G1,11633,11724,99.2238143978165
+Mature neurons,G2M,9,11724,0.0767656090071648
+Mature neurons,S,82,11724,0.69941999317639
+Neural Progenitor cells,G1,2515,7969,31.5597942025348
+Neural Progenitor cells,G2M,3664,7969,45.9781653908897
+Neural Progenitor cells,S,1790,7969,22.4620404065755
+Neuroblasts,G1,2098,2117,99.1025035427492
+Neuroblasts,S,19,2117,0.897496457250827
+Neuroepithelial cells,G1,66,68,97.0588235294118
+Neuroepithelial cells,S,2,68,2.94117647058824
+Non myelinating Schwann cells,G1,420,466,90.1287553648069
+Non myelinating Schwann cells,G2M,24,466,5.15021459227468
+Non myelinating Schwann cells,S,22,466,4.72103004291846
+Oligodendrocytes,G1,145,219,66.2100456621005
+Oligodendrocytes,G2M,31,219,14.1552511415525
+Oligodendrocytes,S,43,219,19.634703196347
+Radial glial cells,G1,1444,3379,42.7345368452205
+Radial glial cells,G2M,897,3379,26.5463154779521
+Radial glial cells,S,1038,3379,30.7191476768275

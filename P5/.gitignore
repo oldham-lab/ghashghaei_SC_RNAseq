@@ -1,0 +1,4 @@
+raw_data/*
+aligned_reads/*
+counts/*
+*.tar
