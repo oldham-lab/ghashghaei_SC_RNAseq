@@ -50,9 +50,8 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
     dplyr::group_by(SetID) %>%
     dplyr::slice_min(Pval, with_ties=F)
   ## For each unique network...
-  cat("\n")
-  print("Projecting modules onto cells...")
   proj_list <- lapply(unique(signif_mods$Network), FUN=function(network){
+    print(paste("Projecting modules from", network, "onto cells..."))
     signif_mods1 <- signif_mods[is.element(signif_mods$Network, network),]
     kme <- fread(signif_mods1$kME[1], data.table=F)
     ## Get list of top N genes by kME for maximally enriched modules:
@@ -61,28 +60,38 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
       return(kme$Gene[index[1:n_genes]])
     })
     names(mod_genes) <- unique(signif_mods1$Module)
-    ## For each experimental group...
+    ## For each experimental group:
     group_proj <- future_lapply(1:length(group_index), FUN=function(j){
       clust_index1 <- lapply(clust_index, function(x) intersect(x, group_index[[j]]))
       ## Stratify expression data by cell type:
       mat_clust <- lapply(clust_index1, function(index) as.matrix(mat[,index]))
-      ## For each module...
+      all_mean <- unlist(lapply(mat_clust, mean))
+      ## For each module:
       mod_proj_list <- lapply(mod_genes, FUN=function(genes){
         ## Project top module genes onto cells:
-        all_mean <- unlist(lapply(mat_clust, mean))
         mod_mean <- unlist(lapply(mat_clust, function(mat){
           return(mean(mat[rownames(expr) %in% genes,]))
         }))
-        frac_mod <- mod_mean/all_mean
-        return(frac_mod/max(frac_mod))
+        std_err <- unlist(lapply(mat_clust, std_err_fxn))
+        ## Normalize relative to all genes:
+        proj_index <- mod_mean/all_mean
+        std_err <- std_err/all_mean
+        ## Normalize relative to all cell types:
+        if(max(proj_index) > 0){
+          proj_index <- proj_index/max(proj_index)
+          std_err <- std_err/max(proj_index)
+        }
+        return(Projection_Index=proj_index, Std_Err=std_err)
       })
-      mod_proj <- do.call(rbind, mod_proj_list)
-      mod_proj <- merge(signif_mods1, mod_proj, by.x="Module", by.y="row.names")
+      temp <- data.frame(Module=names(mod_genes), do.call(rbind, mod_proj_list))
+      mod_proj <- merge(signif_mods1, temp, by="Module")
       return(data.frame(Group=names(group_index)[j], mod_proj))
     })
     return(do.call(rbind, group_proj))
   })
   df <- do.call(rbind, proj_list)
-  fwrite(df, file=paste0("data/", projectname, "_", expr_type, "_module_projections_", pval_cut, "_top_", n_genes, "_module_genes.csv"))
+  fwrite(df, file=paste0("data/", projectname, "_", expr_type, "_module_projections_pval_cut_", pval_cut, "_top_", n_genes, "_module_genes.csv"))
   
 }
+
+std_err_fxn <- function(x){sd(x)/sqrt(length(x))}
