@@ -6,9 +6,9 @@ df <- fread("data/E17_SC_RNAseq_normalized_counts_module_projections_pval_cut_1e
 expr <- readRDS("../../cluster/expr_SC_E17.RDS")
 projectname <- "E17_SC_RNAseq"
 expr_type <- "normalized_counts"
-pval_cut <- 1e-20
 n_genes <- 20
-setsource <- "all"
+pval_cut <- 1e-50
+most_signif <- T
 
 cellinfo <- expr[[]]
 cellinfo$Background <- "Homo"
@@ -17,4 +17,4 @@ cellinfo$EGFR_Status <- cellinfo$Condition
 
 plot_module_projections(projectname, df, cellinfo, 
                         expr, expr_type, pval_cut, 
-                        n_genes, setsource)
+                        n_genes, most_signif)

@@ -11,6 +11,5 @@ pval_cut <- 1e-10
 
 expr$Cluster <- expr$customclassif
 
-plot_module_projections(projectname, df, cellinfo, 
-                        expr, expr_type, pval_cut, 
-                        n_genes, setsource)
+project_modules(projectname, expr, fm_dir, expr_type, pval_cut, n_genes)
+

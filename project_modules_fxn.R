@@ -15,7 +15,7 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
   if(expr_type == "normalized_counts"){
     mat <- log2_sparse(normalize_sparse(as(mat, "TsparseMatrix")))
   } 
-  ## We will be stratifying data by cell type and experimental group:
+  ## We will be stratifying data by experimental group and cell type:
   group_index <- tapply(1:ncol(expr), expr$Group, "[")
   clust_index <- tapply(1:ncol(expr), expr$Cluster, "[")
   networks <- list.files(path=fm_dir, pattern="signum", full.names=T)
@@ -62,30 +62,27 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
     names(mod_genes) <- unique(signif_mods1$Module)
     ## For each experimental group:
     group_proj_list <- lapply(1:length(group_index), function(j){
-      clust_index1 <- lapply(clust_index, function(x) intersect(x, group_index[[j]]))
       ## Stratify expression data by cell type:
+      clust_index1 <- lapply(clust_index, function(x) intersect(x, group_index[[j]]))
       mat_clust <- future_lapply(clust_index1, FUN=function(index) as.matrix(mat[,index]))
       all_mean <- unlist(lapply(mat_clust, mean))
       ## For each module:
       mod_proj_list <- future_lapply(1:length(mod_genes), FUN=function(k){
-        ## Project top module genes onto cells by taking mean expression over module genes (per cell type):
+        ## Project modules onto cells by taking mean expression of module genes over all cell type cells:
         mod_mean <- unlist(lapply(mat_clust, function(mat){
           return(mean(mat[rownames(mat) %in% mod_genes[[k]],]))
         }))
         std_err <- unlist(lapply(mat_clust, function(mat){
-          ## Std err of mean expression per cell over module genes:
+          ## Std err of cell mean expression over module genes:
           x <- colMeans(mat[rownames(mat) %in% mod_genes[[k]],])
           return(sd(x)/sqrt(length(x)))
         }))
-        std_err <- unlist(lapply(mat_clust, std_err_fxn))
         ## Normalize mean expression relative to all genes:
         proj_index <- mod_mean/all_mean
         std_err <- std_err/all_mean
-        ## Normalize expression index relative to all cell types:
-        if(max(proj_index) > 0){
-          proj_index <- proj_index/max(proj_index)
-          std_err <- std_err/max(proj_index)
-        }
+        ## Normalize proj. index relative to all cell types:
+        proj_index <- proj_index/max(proj_index)
+        std_err <- std_err/max(proj_index)
         return(data.frame(Module=names(mod_genes)[k], Cell_Type=names(proj_index),
                           No.Nuclei=unlist(lapply(mat_clust, ncol)), 
                           Projection_Index=proj_index, Std_Err=std_err))
