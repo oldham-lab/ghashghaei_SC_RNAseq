@@ -4,7 +4,7 @@ library(data.table)
 library(future.apply)
 
 options(future.globals.maxSize=Inf)
-plan(multicore, workers=10)
+plan(multicore, workers=13)
 
 source("/home/rebecca/code/misc/normalize_fxns.R")
 
@@ -22,7 +22,6 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
   networks <- networks[unlist(lapply(networks, function(x) length(list.files(x))))>0]
   print("Finding maximally enriched modules...")
   network_list <- future_lapply(1:length(networks), FUN=function(i){
-    print(i)
     ## Get maximally enriched module per gene set:
     enrich_paths <- list.files(path=networks[i], pattern="GSHyperG", full.names=T)
     enrich_list <- lapply(1:length(enrich_paths), function(j){
@@ -69,9 +68,14 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
       all_mean <- unlist(lapply(mat_clust, mean))
       ## For each module:
       mod_proj_list <- future_lapply(1:length(mod_genes), FUN=function(k){
-        ## Project top module genes by taking mean expression over all cells (per cell type):
+        ## Project top module genes onto cells by taking mean expression over module genes (per cell type):
         mod_mean <- unlist(lapply(mat_clust, function(mat){
           return(mean(mat[rownames(mat) %in% mod_genes[[k]],]))
+        }))
+        std_err <- unlist(lapply(mat_clust, function(mat){
+          ## Std err of mean expression per cell over module genes:
+          x <- colMeans(mat[rownames(mat) %in% mod_genes[[k]],])
+          return(sd(x)/sqrt(length(x)))
         }))
         std_err <- unlist(lapply(mat_clust, std_err_fxn))
         ## Normalize mean expression relative to all genes:
@@ -82,11 +86,12 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
           proj_index <- proj_index/max(proj_index)
           std_err <- std_err/max(proj_index)
         }
-        return(data.frame(Module=names(mod_genes)[k], 
-                          Std_Err=std_err, 
-                          Projection_Index=proj_index))
+        return(data.frame(Module=names(mod_genes)[k], Cell_Type=names(proj_index),
+                          No.Nuclei=unlist(lapply(mat_clust, ncol)), 
+                          Projection_Index=proj_index, Std_Err=std_err))
       })
       temp <- do.call(rbind, mod_proj_list)
+      signif_mods1 <- signif_mods1[,c("Module", "Pval", "SetName", "Network", "kME")]
       mod_proj <- merge(signif_mods1, temp, by="Module")
       return(data.frame(Group=names(group_index)[j], mod_proj))
     })
@@ -96,5 +101,3 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
   fwrite(df, file=paste0("data/", projectname, "_", expr_type, "_module_projections_pval_cut_", pval_cut, "_top_", n_genes, "_module_genes.csv"))
   
 }
-
-std_err_fxn <- function(x){sd(x)/sqrt(length(x))}

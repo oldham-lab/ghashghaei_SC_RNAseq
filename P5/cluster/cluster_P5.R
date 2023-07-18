@@ -46,6 +46,8 @@ median(expr$nCount_RNA)
 # [1] 15191
 median(expr$nFeature_RNA)
 # [1] 4457
+dim(expr)
+# [1] 21910 61306
 
 s.genes <- sapply(tolower(cc.genes$s.genes), upper_first)
 g2m.genes <- sapply(tolower(cc.genes$g2m.genes), upper_first)

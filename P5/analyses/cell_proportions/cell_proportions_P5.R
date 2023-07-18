@@ -20,10 +20,13 @@ expr$Protein <- gsub("TDT", "Td", expr$Protein)
 df <- expr[[]] %>%
   dplyr::group_by(customclassif) %>%
   dplyr::mutate(Group=paste(Genotype, Protein)) %>%
-  dplyr::group_by(customclassif, Group, Background, EGFR_Status) %>%
-  dplyr::summarise(n=n()) %>%
   dplyr::group_by(Group) %>%
-  dplyr::mutate(Frac=n/sum(n))
+  dplyr::mutate(Group_Total=n()) %>%
+  dplyr::group_by(customclassif, Group, Background, EGFR_Status) %>%
+  dplyr::summarise(Frac=n()/unique(Group_Total))
+  # dplyr::summarise(n=n()) %>%
+  # dplyr::group_by(Group) %>%
+  # dplyr::mutate(Frac=n/sum(n))
 
 df$Group <- factor(df$Group, levels=c("WT Td", "WT GFP", "FF Td", "FF GFP", "F+ Td", "F+ GFP"))
 df$EGFR_Status <- factor(df$EGFR_Status, levels=c("WT", "Null"))

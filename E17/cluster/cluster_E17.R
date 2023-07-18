@@ -46,6 +46,8 @@ median(expr$nCount_RNA)
 # [1] 4659
 median(expr$nFeature_RNA)
 # [1] 2119
+dim(expr)
+# [1] 14452 46433
 
 ## Add cell cycle scores:
 s.genes <- sapply(tolower(cc.genes$s.genes), upper_first)
@@ -243,4 +245,3 @@ fwrite(cycles_per_ct, file="phase_per_cell_type.csv")
 ## Save annotated data:
 
 saveRDS(expr_int, file="expr_SC_E17.RDS")
-
