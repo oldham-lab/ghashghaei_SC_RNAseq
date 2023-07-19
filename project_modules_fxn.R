@@ -88,7 +88,7 @@ project_modules <- function(projectname, expr, fm_dir, expr_type, pval_cut, n_ge
                           Projection_Index=proj_index, Std_Err=std_err))
       })
       temp <- do.call(rbind, mod_proj_list)
-      signif_mods1 <- signif_mods1[,c("Module", "Pval", "SetName", "Network", "kME")]
+      signif_mods1 <- signif_mods1[,c("Module", "Pval", "SetID", "SetName", "Network", "kME")]
       mod_proj <- merge(signif_mods1, temp, by="Module")
       return(data.frame(Group=names(group_index)[j], mod_proj))
     })

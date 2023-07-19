@@ -7,8 +7,10 @@ library(RColorBrewer)
 
 plot_module_projections <- function(projectname, df, cellinfo, 
                                     expr, expr_type, pval_cut, 
-                                    n_genes, most_signif=F){
+                                    n_genes, most_signif=F, setsource=c("all", "MO", "BROAD")){
 
+  if(setsource == "MO") df <- df[grepl("^MO", df$SetID),]
+  if(setsource == "BROAD") df <- df[!grepl("^MO", df$SetID),]
   if(pval_cut < max(df$Pval)){
     df <- df[df$Pval < pval_cut,]
   } else {
@@ -22,12 +24,14 @@ plot_module_projections <- function(projectname, df, cellinfo,
       dplyr::slice_min(Pval, with_ties=F)
     df <- df[with(df, paste(Network, Module)) %in% temp$ID,]
   }
-  temp <- cellinfo %>%
-    dplyr::group_by(Group, Background, EGFR_Status) %>%
-    dplyr::summarise()
+  temp <- suppressMessages({cellinfo %>%
+      dplyr::group_by(Group, Background, EGFR_Status) %>%
+      dplyr::summarise()})
   df <- merge(df, temp, by="Group")
+  ## Removing Neuroepithelial cells for now because sample size is too small:
+  df <- df[!grepl("Neuroepithelial", df$Cell_Type),]
   
-  file_path <- paste0("figures/", projectname, "_", expr_type, "_module_projections_sets_pval_cut_", pval_cut, "_most_signif_", most_signif, "_top_", n_genes, "_module_genes.pdf")
+  file_path <- paste0("figures/", projectname, "_", expr_type, "_module_projections_", setsource, "_sets_pval_cut_", pval_cut, "_most_signif_", most_signif, "_top_", n_genes, "_module_genes.pdf")
   
   pdf(file=file_path, height=12, width=14)
   
@@ -40,20 +44,21 @@ plot_module_projections <- function(projectname, df, cellinfo,
     kme <- kme[kme$Gene %in% rownames(expr),]
     ## For each module:
     lapply(unique(df1$Module), function(mod){
-      df2 <- df1[df1$Module %in% mod,]
       plot_title <- paste0(mod, " module\n", sapply(strsplit(network, "/"), function(x) x[length(x)]))
+      df2 <- df1[df1$Module %in% mod,]
       kme1 <- kme[,c(2, grep(paste0(mod, "$"), colnames(kme)))]
       ## Order genes by kME for working module:
       kme1 <- kme1[order(kme1[,2], decreasing=T),]
       ## Make table of top 20 genes:
       seed_df <- data.frame(`Top genes by kME`=kme1$Gene[1:20], check.names=F)
       p_seed <- tableGrob(d=seed_df, theme=ttheme_minimal(base_size=12, padding=unit(c(2, 2), "mm")), rows=NULL)
-      enrich <- df2 %>% 
-        dplyr::group_by(SetName, Pval) %>%
-        dplyr::summarise() %>%
-        dplyr::ungroup() %>%
-        dplyr::arrange(Pval) %>%
-        dplyr::slice(1:10) 
+      ## Subset to top 10 (or fewer) sets enriched in working module for plotting:
+      enrich <- suppressMessages({df2 %>% 
+          dplyr::group_by(SetName, Pval) %>%
+          dplyr::summarise() %>%
+          dplyr::ungroup() %>%
+          dplyr::arrange(Pval) %>%
+          dplyr::slice(1:10)})
       enrich$SetName <- factor(enrich$SetName, levels=enrich$SetName)
       ## Enrichment p-values barplot:
       p_enrich <- ggplot(enrich, aes(x=SetName, y=-log10(Pval))) +
@@ -72,17 +77,15 @@ plot_module_projections <- function(projectname, df, cellinfo,
         scale_y_continuous(expand=c(0, 0, 0, 0))
       ## Projection barplots:
       df2 <- df2 %>%
-        dplyr::mutate(
-          Cell_Type=gsub(".", " ", Cell_Type, fixed=T),
-          Err_Min=Projection_Index - 2*Std_Err,
-          Err_Max=Projection_Index + 2*Std_Err
-        ) %>%
+        dplyr::mutate(Cell_Type=gsub(".", " ", Cell_Type, fixed=T),
+                      Err_Min=Projection_Index - 2*Std_Err,
+                      Err_Max=Projection_Index + 2*Std_Err) %>%
         dplyr::group_by(Group, Cell_Type) %>%
         dplyr::slice(1)
       df2$EGFR_Status <- factor(df2$EGFR_Status, levels=c("WT", "Null"))
       df2$Background <- factor(df2$Background, levels=c("Homo", "Het"))
       df2$Group <- factor(df2$Group, levels=c("WT Td", "WT GFP", "FF Td", "FF GFP", "F+ Td", "F+ GFP"))
-      y_lims <- c(min(df2$Err_Min) - .05, max(df2$Err_Max) + .05)
+      y_lims <- c(min(df2$Err_Min) - .1, max(df2$Err_Max) + .1)
       ## Facet by experimental group:
       p1 <- ggplot(df2, aes(x=Cell_Type, y=Projection_Index, fill=Cell_Type)) +
         geom_bar(stat="identity", color="black", show.legend=F) +
@@ -99,7 +102,7 @@ plot_module_projections <- function(projectname, df, cellinfo,
               panel.grid.major.y=element_line(linewidth=.2, color="lightgrey"),
               strip.text.x=element_text(color="black", size=10)) +
         ylab("Projection index") +
-        scale_y_continuous(limits=y_lims, breaks=seq(-1, 1, by=.25)) +
+        scale_y_continuous(limits=y_lims, breaks=seq(-10, 10, by=.25)) +
         scale_fill_manual(values=brewer.pal(n_distinct(df2$Cell_Type), "Paired")) +
         facet_wrap(Group ~ ., ncol=1, scales="free_y")
       ## Facet by cell type:
@@ -123,7 +126,7 @@ plot_module_projections <- function(projectname, df, cellinfo,
               strip.text.x=element_text(size=10)) +
         ylab("Projection index") +
         scale_fill_manual(values=brewer.pal(3, "Set2")) +
-        scale_y_continuous(limits=y_lims, breaks=seq(-1, 1, by=.25)) +
+        scale_y_continuous(limits=y_lims, breaks=seq(-10, 10, by=.25)) +
         facet_wrap(. ~ Cell_Type, ncol=1, scales="free_y") +
         guides(fill=guide_legend(title="Egfr status"))
       ## Arrange multiple plots on the same page:

@@ -7,8 +7,9 @@ expr <- readRDS("../../cluster/expr_SC_E17.RDS")
 projectname <- "E17_SC_RNAseq"
 expr_type <- "normalized_counts"
 n_genes <- 20
-pval_cut <- 1e-50
+pval_cut <- 1e-20
 most_signif <- T
+setsource <- "MO"
 
 cellinfo <- expr[[]]
 cellinfo$Background <- "Homo"

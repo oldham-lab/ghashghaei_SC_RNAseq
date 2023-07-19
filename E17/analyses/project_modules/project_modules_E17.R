@@ -1,3 +1,5 @@
+.libPaths("/home/shared/R/x86_64-pc-linux-gnu-library/4.0")
+
 setwd("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/analyses/project_modules")
 
 source("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/project_modules_fxn.R")
@@ -7,7 +9,7 @@ fm_dir <- "/mnt/bdata/rebecca/collabs/ghashghaei/bulk_expr/E17/analyses/FM/featu
 projectname <- "E17_SC_RNAseq"
 expr_type <- "normalized_counts"
 n_genes <- 20
-pval_cut <- 1e-10
+pval_cut <- 1e-20
 
 expr$Cluster <- expr$customclassif
 
