@@ -16,45 +16,42 @@ cellinfo <- data.frame(Cell_ID=colnames(expr), Sample_ID=sample_ids)
 cellinfo <- merge(cellinfo, sampleinfo, by="Sample_ID", sort=F)
 rownames(cellinfo) <- cellinfo$Cell_ID
 
-table(cellinfo$Sample_ID)
-# gfp_het_1 gfp_het_2 gfp_hom_1 gfp_hom_2  gfp_wt_1  gfp_wt_2 tdt_het_1 tdt_het_2 
-# 4847      4603      5834      7759      6030      2306      8924      3751 
-# tdt_hom_1 tdt_hom_2  tdt_wt_1  tdt_wt_2 
-# 4216      6740      5484      2970 
+# Create Seurat object:
 
-###############################################################################################################
-############################################# Cluster & integrate #############################################
-###############################################################################################################
-
-## Ref: https://satijalab.org/seurat/articles/sctransform_v2_vignette.html
-
-expr <- CreateSeuratObject(counts=expr, meta.data=cellinfo)
+expr <- CreateSeuratObject(counts=expr, meta.data=cellinfo, row.names=genes)
 expr[["percent.mt"]] <- PercentageFeatureSet(expr, pattern="^mt-")
 expr$Group <- paste(expr$Genotype, expr$Protein)
+## Subset to cells with < 10% mitochondrial reads:
 expr <- subset(expr, subset=percent.mt < 10)
+
+## Visualize reads and features per sample:
+
 pdf(paste0("expr_nFeature_RNA.pdf"), width=12, height=7)
 VlnPlot(expr, group.by = "Sample_ID", features = "nFeature_RNA", pt.size = 0.1)
-dev.off()
-pdf(paste0("expr_nCount_RNA.pdf"), width=12, height=7)
-VlnPlot(expr, group.by = "Sample_ID", features = "nCount_RNA", pt.size = 0.1)
 dev.off()
 pdf(paste0("expr_percent_mt.pdf"), width=12, height=7)
 VlnPlot(expr, group.by = "Sample_ID", features = "percent.mt", pt.size = 0.1)
 dev.off()
 
+## How many cells per experimental group?
+table(expr$Group)
+
+## Median number reads per nucleus:
 median(expr$nCount_RNA)
-# [1] 15191
+
+## Median number of genes expressed per nucleus:
 median(expr$nFeature_RNA)
-# [1] 4457
+
+## No. genes and cells in total:
 dim(expr)
-# [1] 21910 61306
+
+## Adding cell cycle scores:
 
 s.genes <- sapply(tolower(cc.genes$s.genes), upper_first)
 g2m.genes <- sapply(tolower(cc.genes$g2m.genes), upper_first)
 expr <- CellCycleScoring(expr, s.features=s.genes, g2m.features=g2m.genes, set.ident=T)
 
-## Integrate samples:
-
+## Integrating samples:
 ## Ref: https://satijalab.org/seurat/articles/integration_introduction.html
 
 split <- SplitObject(expr, split.by="Sample_ID")
@@ -69,8 +66,10 @@ expr_int <- IntegrateData(anchorset=anchors, normalization.method="SCT")
 expr_int <- RunPCA(expr_int, npcs=30)
 expr_int <- RunUMAP(expr_int, reduction="pca", dims=1:30)
 expr_int <- FindNeighbors(expr_int, reduction="pca", dims=1:30)
-res <- 1
+res <- .4
 expr_int <- FindClusters(expr_int, resolution=res)
+
+## Visualize clusters:
 
 pdf(paste0("SCT_UMAP_cluster_res_", res, ".pdf"), width=12, height=7)
 DimPlot(expr_int, reduction="umap", pt.size=.3, label=T, group.by="seurat_clusters")
@@ -83,153 +82,90 @@ FeaturePlot(expr_int, features="percent.mt", split.by="Sample_ID")
 dev.off()
 
 ## Using sc-type auto annotation for a first pass at annotation:
-
 ## Ref: https://github.com/IanevskiAleksandr/sc-type/
-library(HGNChelper)
-# load gene set preparation function
+
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
-# load cell type annotation function
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
-# DB file
-db_ = "https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_full.xlsx";
-tissue = "Brain"
-# prepare gene sets
-gs_list = gene_sets_prepare(db_, tissue)
-es.max = sctype_score(scRNAseqData = expr_int[["integrated"]]@scale.data, 
-                      scaled = T, gs = gs_list$gs_positive, gs2 = gs_list$gs_negative)
-# merge by cluster
+## Using custom cell type marker list:
+marker_genes <- readRDS("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/marker_gene_list.RDS")
+marker_genes <- lapply(marker_genes, HGNChelper::findExcelGeneSymbols)
+gs_list <- list(gs_positive=marker_genes)
+es.max = sctype_score(scRNAseqData = expr_int[["integrated"]]@scale.data, scaled = T, gs = gs_list$gs_positive, gs2=NULL, gene_names_to_uppercase=F)
 cL_resutls = do.call("rbind", lapply(unique(expr_int@meta.data$seurat_clusters), function(cl){
   es.max.cl = sort(rowSums(es.max[ ,rownames(expr_int@meta.data[expr_int@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
   head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(expr_int@meta.data$seurat_clusters==cl)), 10)
 }))
 sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
-sctype_scores$type[as.numeric(as.character(sctype_scores$scores)) < sctype_scores$ncells/4] <- "Unknown"
+sctype_scores$type[as.numeric(as.character(sctype_scores$scores)) < sctype_scores$ncells/4] = "Unknown"
 expr_int@meta.data$customclassif = ""
 for(j in unique(sctype_scores$cluster)){
   cl_type = sctype_scores[sctype_scores$cluster==j,];
   expr_int@meta.data$customclassif[expr_int@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
 }
 Idents(expr_int) <- "customclassif"
-  
+
+## Visualize annotated clusters:
+
 pdf("SCT_sc-type_auto_annotated_clsuters.pdf", width=10, height=7)
 DimPlot(expr_int, reduction = "umap", label = TRUE, repel = TRUE, group.by = 'customclassif')
 DimPlot(expr_int, reduction = "umap", label = TRUE, repel = TRUE, group.by = 'seurat_clusters')
 dev.off()
 
-## Visualize canonical markers:
-
-DefaultAssay(object=expr_int) <- "RNA"
-
-pdf("SCT_canonical_markers.pdf", width=10, height=7)
-## Oligos
-FeaturePlot(object=expr_int, features=c("Olig1", "Olig2", "Sox10", "Mog"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## OPCs
-FeaturePlot(object=expr_int, features=c("Pdgfra", "Cspg4", "Pcdh15", "Lhfpl3"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Asctrocytes
-FeaturePlot(object=expr_int, features=c("Apoe", "Gfap", "Slc1a3"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Glutamatergic
-FeaturePlot(object=expr_int, features=c("Neurod2", "Neurod6", "Slc17a6", "Slc17a7"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## GABAergic
-FeaturePlot(object=expr_int, features=c("Gad2", "Gad1", "Dlx6os1"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Immature neurons
-FeaturePlot(object=expr_int, features=c("Ncam1", "Neurod1"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Mature neurons
-FeaturePlot(object=expr_int, features=c("Dlg4", "Gap43", "Map2", "Rbfox3"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Ependymal cells
-FeaturePlot(object=expr_int, features=c("Foxj1"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Fibroblasts
-FeaturePlot(object=expr_int, features=c("Col1a1", "Col1a2", "Col5a1", "Fbln1"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Radial glia
-FeaturePlot(object=expr_int, features=c("Vim", "Hes1", "Hes5", "Cdh2"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Neural progenitor cells
-FeaturePlot(object=expr_int, features=c("Ascl1", "Sox1", "Smarca4"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Neural stem cells
-FeaturePlot(object=expr_int, features=c("Sox9", "Prom1"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-## Cycling
-FeaturePlot(object=expr_int, features=c("Hmgb2", "Top2a", "Cdk6"), label=T, repel=F, label.size=2, slot="data", pt.size=.1, order=T)
-dev.off()
-
-# ## Annotate clusters based on expression:
-# 
-# expr_int$My_Anno <- as.character(expr_int$customclassif)
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(36))] <- "Radial glia"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(16, 28, 33))] <- "Neural progenitor cells"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(6, 9, 11, 13, 25, 36))] <- "Astrocyte"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(4, 14))] <- "Glutamatergic neuron"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(0:3, 7, 38))] <- "GABAergic neuron"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(20))] <- "Mature neuron"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(23))] <- "Immature neuron"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(30))] <- "Oligodendrocyte"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(8, 19, 27, 32, 27))] <- "OPC"
-# Idents(expr_int) <- "My_Anno"
-
 ## Get cluster markers
 
-expr_int <- PrepSCTFindMarkers(expr_int, assay="SCT")
-markers <- FindAllMarkers(expr_int, assay="SCT")
-top_markers <- markers %>%
-  dplyr::group_by(cluster) %>%
-  dplyr::slice_head(n=15) %>%
-  as.data.frame()
-write.csv(top_markers, file="top_markers_rd1.csv", row.names=F)
-
-# ## Add additional annotations:
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(15))] <- "Ependymal cell" # Tmem212, Rarres2, Cfap299
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(10, 26, 34, 21))] <- "Neural progenitor cells" # Hist1h2ap, Top2a, Hmgb2, Pclaf, Ccnd2, Hmgn2, Neurod1, Ascl1
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(12, 17))] <- "GABAergic neuron"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(22, 24, 41))] <- "Mature neuron"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(27))] <- "OPC"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(31, 5, 29))] <- "Astrocyte"
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(18, 39, 40))] <- "Radial glia" # Rsph1, Sparc, Tmem212, Fabp7, Gli2, Gli3, Notch2
-# expr_int$My_Anno[is.element(expr_int$seurat_clusters, c(37))] <- "Pericytes and Vascular leptomeningeal" # Vtn, Igf2, Apod, Dcn, Col1a2
+# expr_int <- PrepSCTFindMarkers(expr_int, assay="SCT")
+# markers <- FindAllMarkers(expr_int, assay="SCT")
+# top_markers <- markers %>%
+#   dplyr::group_by(cluster) %>%
+#   dplyr::slice_head(n=15) %>%
+#   as.data.frame()
+# write.csv(top_markers, file="top_markers_rd1.csv", row.names=F)
 # 
-# ## Plot annotated clusters:
-# 
-# pdf("SCT_annotated_clusters.pdf", width=10, height=7)
-# DimPlot(expr_int, reduction="umap", pt.size=.3, shuffle=T)
-# DimPlot(expr_int, reduction="umap", pt.size=.3, split.by="Group", shuffle=T)
-# dev.off()
+# top_markers %>% select(cluster, gene)
 
-## Make summary tables breaking down # nuclei per cell types and/or cell cycle and experimental group:
+## Calculate no./fraction of cells across cell types and experimental conditions:
 
-nuclei_group <- expr_int[[]] %>%
+metadata <- expr_int[[]]
+
+n_cells_per_group <- metadata %>%
   dplyr::group_by(Group) %>%
   dplyr::summarise(No.Total_Nuclei=n()) %>%
   dplyr::arrange(No.Total_Nuclei)
 
-nuclei_cycle <- expr_int[[]]  %>%
+n_cells_per_cycle <- metadata  %>%
   dplyr::group_by(Phase) %>%
   dplyr::summarise(No.Total_Nuclei=n()) %>%
   dplyr::arrange(No.Total_Nuclei)
 
-nuclei_cts <- expr_int[[]]  %>%
+n_cells_per_ct <- metadata  %>%
   dplyr::group_by(customclassif) %>%
   dplyr::summarise(No.Total_Nuclei=n()) %>%
   dplyr::arrange(No.Total_Nuclei)
 
-cts_per_group <- expr_int[[]]  %>%
+
+n_cts_per_group <- metadata  %>%
   dplyr::group_by(Group) %>%
   dplyr::mutate(Total=n()) %>%
-  dplyr::group_by(Group, EGFR_Status, customclassif) %>%
+  dplyr::group_by(Group, Condition, customclassif) %>%
   dplyr::summarise(
     No.CT_Nuclei=n(),
     No.Total_Nuclei=unique(Total),
     Percent_CT_Nuclei=unique(n()/Total)*100,
   ) %>%
-  dplyr::arrange(customclassif, EGFR_Status, Group)
+  dplyr::arrange(customclassif, Condition, Group)
 
-cycles_per_group <- expr_int[[]]  %>%
+n_cycles_per_group <- metadata  %>%
   dplyr::group_by(Group) %>%
   dplyr::mutate(Total=n()) %>%
-  dplyr::group_by(Group, EGFR_Status, Phase) %>%
+  dplyr::group_by(Group, Condition, Phase) %>%
   dplyr::summarise(
     No.Phase_Nuclei=n(),
     No.Total_Nuclei=unique(Total),
     Percent_Phase_Nuclei=unique(n()/Total)*100,
   ) %>%
-  dplyr::arrange(Phase, Group, EGFR_Status)
+  dplyr::arrange(Phase, Group, Condition)
 
-cycles_per_ct <- expr_int[[]]  %>%
+n_cycles_per_ct <- metadata  %>%
   dplyr::group_by(customclassif) %>%
   dplyr::mutate(Total=n()) %>%
   dplyr::group_by(customclassif, Phase) %>%
@@ -240,23 +176,19 @@ cycles_per_ct <- expr_int[[]]  %>%
   ) %>%
   dplyr::arrange(customclassif, Phase)
 
-## Plot:
+## Visualize cell cycle by cell type:
 
 pdf("phase_per_cell_type.pdf", width=14, height=7)
 DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", shuffle=T)
 DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", split.by="customclassif", shuffle=T, ncol=3)
 dev.off()
 
-## Save:
+# Save:
 
-fwrite(nuclei_group, file="nuclei_per_experimental_group.csv")
-fwrite(nuclei_cycle, file="nuclei_per_phase.csv")
-fwrite(nuclei_cts, file="nuclei_per_cell_type.csv")
-fwrite(cts_per_group, file="cell_types_per_experimental_group.csv")
-fwrite(cycles_per_group, file="phase_per_experimental_group.csv")
-fwrite(cycles_per_ct, file="phase_per_cell_type.csv")
-
-## Save annotated data:
-
+fwrite(n_cells_per_group, file="cells_per_experimental_group_P5.csv")
+fwrite(n_cells_per_cycle, file="cells_per_phase_P5.csv")
+fwrite(n_cells_per_ct, file="cells_per_cell_type_P5.csv")
+fwrite(n_cts_per_group, file="cell_types_per_experimental_group_P5.csv")
+fwrite(n_cycles_per_group, file="cycles_per_experimental_group_P5.csv")
+fwrite(n_cycles_per_ct, file="cycles_per_cell_type_P5.csv")
 saveRDS(expr_int, file="expr_SC_P5.RDS")
-

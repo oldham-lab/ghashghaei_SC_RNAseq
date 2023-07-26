@@ -1,0 +1,350 @@
+# E17
+
+## QC for count data per sample
+### Note: Using 'raw' CellRanger outputs for this step
+
+Setup:
+```{r}
+library(dplyr)
+library(Matrix)
+library(Seurat)
+library(data.table)
+library(HGNChelper)
+## Note: Will run QC steps on samples in parallel using 'future_lapply' function:
+library(future.apply)
+options(future.globals.maxSize=Inf)
+plan(multicore, workers=10)
+```
+
+### QC steps:
+### 1) Remove cells with < 1,000 UMIs
+### 2) Remove cells with > 10% mitochondrial reads
+### 3) Remove cells expressing < 1,000 genes
+### 4) Remove cells > .999 percentile of # expressed genes
+### 5) Remove cells with novelty < .8 (~# genes detected per UMI)
+### 6) Remove zero variance genes
+
+Using Mito genes from MitoCarta:
+```{r}
+mito_genes <- fread("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/counts/Mouse.MitoCarta2.0.txt", data.table=F)
+mito_genes <- mito_genes[is.element(mito_genes$TrainingDataset, "Tmito"),]
+```
+
+CellRanger output directory (per sample):
+```{r}
+samples <- list.dirs(path="/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/aligned_reads", recursive=F)
+```
+
+Running QC for each sample:
+```{r}
+home_dir <- "/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/counts/samples"
+setwd(home_dir)
+# future_lapply(1:length(samples), function(i){
+#   sample_id <- sapply(strsplit(samples[i], "/", fixed=T), function(x) x[length(x)])
+#   print(sample_id)
+#   setwd(file.path(samples[i], "outs/raw_feature_bc_matrix"))
+#   if(any(grepl("gz", list.files()))) system("gunzip *.gz")
+#   expr <- readMM("matrix.mtx")
+#   genes <- fread("features.tsv", header=F, data.table=F)
+#   barcodes <- fread("barcodes.tsv", header=F, data.table=F)
+#   colnames(expr) <- barcodes[,c(1)]
+#   ## 1) Remove cells with < 1000 UMIs:
+#   n_umis <- colSums(expr)
+#   expr <- expr[,n_umis >= 1000]
+#   pdf(file=paste0(home_dir, "/", sample_id, "_QC.pdf"))
+#   n_umis <- colSums(expr)
+#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
+#   plot(n_umis, n_genes, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 UMIs/cell)"))
+#   hist(n_genes, breaks=100, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 UMIs/cell)"))
+#   ## 2) Remove cells with mito >10% mitochondrial reads
+#   mito_expr <- expr[tolower(genes[,c(2)]) %in% tolower(mito_genes$Symbol),]
+#   mito_expr <- colSums(mito_expr)/colSums(expr)
+#   expr <- expr[, mito_expr <= .1]
+#   ## 3) Remove cells expressing < 1000 genes:
+#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
+#   expr <- expr[,n_genes >= 1000]
+#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
+#   # hist(n_genes, breaks=100, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 genes/cell)"))
+#   ## 4) Remove cells > .999 percentile of # expressed genes:
+#   expr <- expr[,n_genes <= quantile(n_genes, .999)]
+#   ## 5) Remove cells with "novelty" < .8
+#   n_umis <- colSums(expr)
+#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
+#   novelty <- log10(n_genes)/log10(n_umis)
+#   expr <- expr[,novelty >= .8]
+#   ## 6) Remove zero variance genes:
+#   index <- rowSums(expr) > 0
+#   expr <- expr[index,]
+#   genes <- genes[index,]
+#   ## Plot final results:
+#   n_umis <- colSums(expr)
+#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
+#   plot(n_umis, n_genes, main=paste(sample_id, "\n", ncol(expr), "cells,", nrow(genes), "genes"))
+#   dev.off()
+#   ## Make barcodes unique:
+#   colnames(expr) <- paste0(sample_id, "_", colnames(expr))
+#   ## Save:
+#   setwd(home_dir)
+#   fwrite(data.frame(genes), file=paste0(sample_id, "_genes_QC.tsv"), col.names=F)
+#   fwrite(data.frame(colnames(expr)), file=paste0(sample_id, "_barcodes_QC.tsv"), col.names=F)
+#   writeMM(expr, file=paste0(sample_id, "_expression_QC.mtx"))
+# })
+```
+
+Merge QC samples into single expression matrix:
+```{r}
+setwd("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/counts/samples")
+# expr_paths <- list.files(path=getwd(), pattern=".mtx", full.names=T, recursive=F)
+# expr_list <- lapply(1:length(expr_paths), function(i){
+#   expr <- readMM(expr_paths[i])
+#   expr <- as(expr, "matrix")
+#   genes <- fread(gsub("expression_QC.mtx", "genes_QC.tsv", expr_paths[i]), header=F, data.table=F)
+#   barcodes <- fread(gsub("expression_QC.mtx", "barcodes_QC.tsv", expr_paths[i]), header=F, data.table=F)
+#   if(any(duplicated(genes[,c(2)]))){
+#     mean_expr <- genes %>%
+#       dplyr::mutate(Idx=1:n(), Mean=rowMeans(expr)) %>%
+#       dplyr::group_by(V2) %>%
+#       dplyr::slice_max(order_by=Mean, with_ties=F)
+#     expr <- expr[mean_expr$Idx,]
+#     genes <- genes[mean_expr$idx,]
+#   }
+#   colnames(expr) <- barcodes[,c(1)]
+#   return(data.frame(Gene=genes[,c(2)], expr))
+# })
+# 
+# expr_merge <- Reduce(f=function(x, y){
+#   merge(x, y, by="Gene")
+# }, expr_list)
+# 
+# fwrite(expr_merge, file="../expression_QC.csv")
+```
+
+## Annotate cell types
+### Ref: https://satijalab.org/seurat/articles/sctransform_v2_vignette.html
+
+Set up:
+```{r setup}
+## Seting WD for all subsequent code chunks:
+knitr::opts_knit$set(root.dir="/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/cluster")
+source("/home/rebecca/code/misc/upper_first.R") ## Custom function converts first character of string to upper case, rest lowercase
+```
+
+```{r}
+## Merged QC counts for all samples:
+expr <- fread("../counts/expression_QC.csv", data.table=F)
+## Sample metadata:
+sampleinfo <- read.csv("../sampleinfo_SC_E17.csv")
+sampleinfo
+```
+
+Format count data and metadata:
+```{r}
+## Prep metadata:
+sample_ids <- sapply(strsplit(colnames(expr[-c(1)]), "_"), function(x) paste(x[-length(x)], collapse="_"))
+cellinfo <- data.frame(Cell_ID=colnames(expr)[-c(1)], Label=sample_ids)
+sampleinfo <- sampleinfo[!duplicated(sampleinfo$Label),]
+cellinfo <- merge(cellinfo, sampleinfo, by="Label")
+cellinfo <- cellinfo %>% dplyr::select(-c(Sequencing_Date, Depth, Number_of_Cells_Loaded))
+## Prep expression data:
+genes <- expr[,c(1)]
+expr <- as(expr[,-c(1)], "matrix")
+rownames(expr) <- genes
+colnames(expr) <- cellinfo$Cell_ID
+rownames(cellinfo) <- cellinfo$Cell_ID
+```
+
+Create Seurat object:
+```{r}
+expr <- CreateSeuratObject(counts=expr, meta.data=cellinfo, row.names=genes)
+expr[["percent.mt"]] <- PercentageFeatureSet(expr, pattern="^mt-")
+expr$Group <- paste(expr$Genotype, expr$Protein)
+## Subset to cells with < 10% mitochondrial reads:
+expr <- subset(expr, subset=percent.mt < 10)
+```
+
+Visualize reads and features per sample:
+```{r}
+VlnPlot(expr, group.by = "Label", features = "nFeature_RNA", pt.size = 0.1)
+VlnPlot(expr, group.by = "Label", features = "percent.mt", pt.size = 0.1)
+# pdf(paste0("expr_nFeature_RNA.pdf"), width=12, height=7)
+# VlnPlot(expr, group.by = "Label", features = "nFeature_RNA", pt.size = 0.1)
+# dev.off()
+# pdf(paste0("expr_percent_mt.pdf"), width=12, height=7)
+# VlnPlot(expr, group.by = "Label", features = "percent.mt", pt.size = 0.1)
+# dev.off()
+```
+
+How many cells per experimental group?
+```{r}
+table(expr$Group)
+```
+
+Median number reads per nucleus:
+```{r} 
+median(expr$nCount_RNA)
+```
+
+Median number of genes expressed per nucleus:
+```{r}
+median(expr$nFeature_RNA)
+```
+
+No. genes and cells in total:
+```{r}
+dim(expr)
+```
+
+Adding cell cycle scores:
+```{r}
+s.genes <- sapply(tolower(cc.genes$s.genes), upper_first)
+g2m.genes <- sapply(tolower(cc.genes$g2m.genes), upper_first)
+expr <- CellCycleScoring(expr, s.features=s.genes, g2m.features=g2m.genes, set.ident=T)
+```
+
+Integrating samples:
+Ref: https://satijalab.org/seurat/articles/integration_introduction.html
+```{r}
+split <- SplitObject(expr, split.by="Label")
+split <- lapply(X=split, FUN=function(x){
+  set.seed(123)
+  x <- SCTransform(x, vars.to.regress=c('percent.mt'), vst.flavor="v2") # 'nFeature_RNA', 'nCount_RNA'
+})
+features <- SelectIntegrationFeatures(object.list=split, nfeatures=2000)
+split <- PrepSCTIntegration(object.list=split, anchor.features=features)
+anchors <- FindIntegrationAnchors(object.list=split, anchor.features=features, normalization.method="SCT")
+expr_int <- IntegrateData(anchorset=anchors, normalization.method="SCT")
+expr_int <- RunPCA(expr_int, npcs=30)
+expr_int <- RunUMAP(expr_int, reduction="pca", dims=1:30)
+expr_int <- FindNeighbors(expr_int, reduction="pca", dims=1:30)
+res <- .7
+expr_int <- FindClusters(expr_int, resolution=res)
+
+## Visualize clusters:
+DimPlot(expr_int, reduction="umap", pt.size=.3, label=T)
+DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Label")
+```
+
+Using sc-type tool for annotation:
+Ref: https://github.com/IanevskiAleksandr/sc-type/
+```{r}
+source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R")
+source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
+## Using custom cell type marker list:
+marker_genes <- readRDS("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/marker_gene_list.RDS")
+marker_genes <- lapply(marker_genes, HGNChelper::findExcelGeneSymbols)
+gs_list <- list(gs_positive=marker_genes)
+es.max = sctype_score(scRNAseqData = expr_int[["integrated"]]@scale.data, scaled = T, gs = gs_list$gs_positive, gs2=NULL, gene_names_to_uppercase=F)
+cL_resutls = do.call("rbind", lapply(unique(expr_int@meta.data$seurat_clusters), function(cl){
+  es.max.cl = sort(rowSums(es.max[ ,rownames(expr_int@meta.data[expr_int@meta.data$seurat_clusters==cl, ])]), decreasing = !0)
+  head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(expr_int@meta.data$seurat_clusters==cl)), 10)
+}))
+sctype_scores = cL_resutls %>% group_by(cluster) %>% top_n(n = 1, wt = scores)
+sctype_scores$type[as.numeric(as.character(sctype_scores$scores)) < sctype_scores$ncells/4] = "Unknown"
+expr_int@meta.data$customclassif = ""
+for(j in unique(sctype_scores$cluster)){
+  cl_type = sctype_scores[sctype_scores$cluster==j,];
+  expr_int@meta.data$customclassif[expr_int@meta.data$seurat_clusters == j] = as.character(cl_type$type[1])
+}
+Idents(expr_int) <- "customclassif"
+```
+
+Visualize annotated clusters:
+```{r}
+DimPlot(expr_int, reduction = "umap", label = TRUE, repel = TRUE, group.by = 'customclassif')
+```
+
+Get cluster markers:
+```{r}
+# expr_int <- PrepSCTFindMarkers(expr_int, assay="SCT")
+# markers <- FindAllMarkers(expr_int, assay="SCT")
+# markers %>% 
+#   dplyr::group_by(cluster) %>% 
+#   dplyr::slice_head(n=15) %>%
+#   as.data.frame()
+```
+
+Calculate no./fraction of cells across cell types and experimental conditions:
+```{r}
+metadata <- expr_int[[]]
+
+n_cells_per_group <- metadata %>%
+  dplyr::group_by(Group) %>%
+  dplyr::summarise(No.Total_Nuclei=n()) %>%
+  dplyr::arrange(No.Total_Nuclei)
+n_cells_per_group
+```
+
+```{r}
+n_cells_per_cycle <- metadata  %>%
+  dplyr::group_by(Phase) %>%
+  dplyr::summarise(No.Total_Nuclei=n()) %>%
+  dplyr::arrange(No.Total_Nuclei)
+n_cells_per_cycle
+```
+
+```{r}
+n_cells_per_ct <- metadata  %>%
+  dplyr::group_by(customclassif) %>%
+  dplyr::summarise(No.Total_Nuclei=n()) %>%
+  dplyr::arrange(No.Total_Nuclei)
+n_cells_per_ct
+```
+
+```{r}
+n_cts_per_group <- metadata  %>%
+  dplyr::group_by(Group) %>%
+  dplyr::mutate(Total=n()) %>%
+  dplyr::group_by(Group, Condition, customclassif) %>%
+  dplyr::summarise(
+    No.CT_Nuclei=n(),
+    No.Total_Nuclei=unique(Total),
+    Percent_CT_Nuclei=unique(n()/Total)*100,
+  ) %>%
+  dplyr::arrange(customclassif, Condition, Group)
+n_cts_per_group
+```
+
+```{r}
+n_cycles_per_group <- metadata  %>%
+  dplyr::group_by(Group) %>%
+  dplyr::mutate(Total=n()) %>%
+  dplyr::group_by(Group, Condition, Phase) %>%
+  dplyr::summarise(
+    No.Phase_Nuclei=n(),
+    No.Total_Nuclei=unique(Total),
+    Percent_Phase_Nuclei=unique(n()/Total)*100,
+  ) %>%
+  dplyr::arrange(Phase, Group, Condition)
+n_cycles_per_group
+```
+
+```{r}
+n_cycles_per_ct <- metadata  %>%
+  dplyr::group_by(customclassif) %>%
+  dplyr::mutate(Total=n()) %>%
+  dplyr::group_by(customclassif, Phase) %>%
+  dplyr::summarise(
+    No.CT_Phase_Nuclei=n(),
+    No.Total_CT_Nuclei=unique(Total),
+    Percent_CT_Phase_Nuclei=unique(n()/Total)*100,
+  ) %>%
+  dplyr::arrange(customclassif, Phase)
+n_cycles_per_ct
+```
+
+Visualize cell cycle by cell type:
+```{r}
+DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", shuffle=T)
+DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", split.by="customclassif", shuffle=T, ncol=3)
+```
+
+Save:
+```{r}
+# fwrite(n_cells_per_group, file="cells_per_experimental_group_E17.csv")
+# fwrite(n_cells_per_cycle, file="cells_per_phase_E17.csv")
+# fwrite(n_cells_per_ct, file="cells_per_cell_type_E17.csv")
+# fwrite(n_cts_per_group, file="cell_types_per_experimental_group_E17.csv")
+# fwrite(n_cycles_per_group, file="cycles_per_experimental_group_E17.csv")
+# fwrite(n_cycles_per_ct, file="cycles_per_cell_type_E17.csv")
+# saveRDS(expr_int, file="expr_SC_E17.RDS")
+```
