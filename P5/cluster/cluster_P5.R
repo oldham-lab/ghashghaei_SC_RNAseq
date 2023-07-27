@@ -123,7 +123,7 @@ dev.off()
 # 
 # top_markers %>% select(cluster, gene)
 
-## Calculate no./fraction of cells across cell types and experimental conditions:
+## Calculate no./fraction of cells across cell types and experimental EGFR_Statuss:
 
 metadata <- expr_int[[]]
 
@@ -146,24 +146,24 @@ n_cells_per_ct <- metadata  %>%
 n_cts_per_group <- metadata  %>%
   dplyr::group_by(Group) %>%
   dplyr::mutate(Total=n()) %>%
-  dplyr::group_by(Group, Condition, customclassif) %>%
+  dplyr::group_by(Group, EGFR_Status, customclassif) %>%
   dplyr::summarise(
     No.CT_Nuclei=n(),
     No.Total_Nuclei=unique(Total),
     Percent_CT_Nuclei=unique(n()/Total)*100,
   ) %>%
-  dplyr::arrange(customclassif, Condition, Group)
+  dplyr::arrange(customclassif, EGFR_Status, Group)
 
 n_cycles_per_group <- metadata  %>%
   dplyr::group_by(Group) %>%
   dplyr::mutate(Total=n()) %>%
-  dplyr::group_by(Group, Condition, Phase) %>%
+  dplyr::group_by(Group, EGFR_Status, Phase) %>%
   dplyr::summarise(
     No.Phase_Nuclei=n(),
     No.Total_Nuclei=unique(Total),
     Percent_Phase_Nuclei=unique(n()/Total)*100,
   ) %>%
-  dplyr::arrange(Phase, Group, Condition)
+  dplyr::arrange(Phase, Group, EGFR_Status)
 
 n_cycles_per_ct <- metadata  %>%
   dplyr::group_by(customclassif) %>%

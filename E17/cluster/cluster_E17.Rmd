@@ -1,3 +1,9 @@
+---
+title: "E17.5 SC-RNA-seq preprocessing and cell annotation"
+author: "Rebecca Eliscu"
+date: "`r Sys.Date()`"
+---
+
 # E17
 
 ## QC for count data per sample
@@ -36,87 +42,87 @@ samples <- list.dirs(path="/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/ali
 ```
 
 Running QC for each sample:
-```{r}
+```{r, eval=F}
 home_dir <- "/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/counts/samples"
 setwd(home_dir)
-# future_lapply(1:length(samples), function(i){
-#   sample_id <- sapply(strsplit(samples[i], "/", fixed=T), function(x) x[length(x)])
-#   print(sample_id)
-#   setwd(file.path(samples[i], "outs/raw_feature_bc_matrix"))
-#   if(any(grepl("gz", list.files()))) system("gunzip *.gz")
-#   expr <- readMM("matrix.mtx")
-#   genes <- fread("features.tsv", header=F, data.table=F)
-#   barcodes <- fread("barcodes.tsv", header=F, data.table=F)
-#   colnames(expr) <- barcodes[,c(1)]
-#   ## 1) Remove cells with < 1000 UMIs:
-#   n_umis <- colSums(expr)
-#   expr <- expr[,n_umis >= 1000]
-#   pdf(file=paste0(home_dir, "/", sample_id, "_QC.pdf"))
-#   n_umis <- colSums(expr)
-#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
-#   plot(n_umis, n_genes, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 UMIs/cell)"))
-#   hist(n_genes, breaks=100, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 UMIs/cell)"))
-#   ## 2) Remove cells with mito >10% mitochondrial reads
-#   mito_expr <- expr[tolower(genes[,c(2)]) %in% tolower(mito_genes$Symbol),]
-#   mito_expr <- colSums(mito_expr)/colSums(expr)
-#   expr <- expr[, mito_expr <= .1]
-#   ## 3) Remove cells expressing < 1000 genes:
-#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
-#   expr <- expr[,n_genes >= 1000]
-#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
-#   # hist(n_genes, breaks=100, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 genes/cell)"))
-#   ## 4) Remove cells > .999 percentile of # expressed genes:
-#   expr <- expr[,n_genes <= quantile(n_genes, .999)]
-#   ## 5) Remove cells with "novelty" < .8
-#   n_umis <- colSums(expr)
-#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
-#   novelty <- log10(n_genes)/log10(n_umis)
-#   expr <- expr[,novelty >= .8]
-#   ## 6) Remove zero variance genes:
-#   index <- rowSums(expr) > 0
-#   expr <- expr[index,]
-#   genes <- genes[index,]
-#   ## Plot final results:
-#   n_umis <- colSums(expr)
-#   n_genes <- apply(expr, 2, function(x) sum(x > 0))
-#   plot(n_umis, n_genes, main=paste(sample_id, "\n", ncol(expr), "cells,", nrow(genes), "genes"))
-#   dev.off()
-#   ## Make barcodes unique:
-#   colnames(expr) <- paste0(sample_id, "_", colnames(expr))
-#   ## Save:
-#   setwd(home_dir)
-#   fwrite(data.frame(genes), file=paste0(sample_id, "_genes_QC.tsv"), col.names=F)
-#   fwrite(data.frame(colnames(expr)), file=paste0(sample_id, "_barcodes_QC.tsv"), col.names=F)
-#   writeMM(expr, file=paste0(sample_id, "_expression_QC.mtx"))
-# })
+future_lapply(1:length(samples), function(i){
+  sample_id <- sapply(strsplit(samples[i], "/", fixed=T), function(x) x[length(x)])
+  print(sample_id)
+  setwd(file.path(samples[i], "outs/raw_feature_bc_matrix"))
+  if(any(grepl("gz", list.files()))) system("gunzip *.gz")
+  expr <- readMM("matrix.mtx")
+  genes <- fread("features.tsv", header=F, data.table=F)
+  barcodes <- fread("barcodes.tsv", header=F, data.table=F)
+  colnames(expr) <- barcodes[,c(1)]
+  ## 1) Remove cells with < 1000 UMIs:
+  n_umis <- colSums(expr)
+  expr <- expr[,n_umis >= 1000]
+  pdf(file=paste0(home_dir, "/", sample_id, "_QC.pdf"))
+  n_umis <- colSums(expr)
+  n_genes <- apply(expr, 2, function(x) sum(x > 0))
+  plot(n_umis, n_genes, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 UMIs/cell)"))
+  hist(n_genes, breaks=100, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 UMIs/cell)"))
+  ## 2) Remove cells with mito >10% mitochondrial reads
+  mito_expr <- expr[tolower(genes[,c(2)]) %in% tolower(mito_genes$Symbol),]
+  mito_expr <- colSums(mito_expr)/colSums(expr)
+  expr <- expr[, mito_expr <= .1]
+  ## 3) Remove cells expressing < 1000 genes:
+  n_genes <- apply(expr, 2, function(x) sum(x > 0))
+  expr <- expr[,n_genes >= 1000]
+  n_genes <- apply(expr, 2, function(x) sum(x > 0))
+  # hist(n_genes, breaks=100, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 genes/cell)"))
+  ## 4) Remove cells > .999 percentile of # expressed genes:
+  expr <- expr[,n_genes <= quantile(n_genes, .999)]
+  ## 5) Remove cells with "novelty" < .8
+  n_umis <- colSums(expr)
+  n_genes <- apply(expr, 2, function(x) sum(x > 0))
+  novelty <- log10(n_genes)/log10(n_umis)
+  expr <- expr[,novelty >= .8]
+  ## 6) Remove zero variance genes:
+  index <- rowSums(expr) > 0
+  expr <- expr[index,]
+  genes <- genes[index,]
+  ## Plot final results:
+  n_umis <- colSums(expr)
+  n_genes <- apply(expr, 2, function(x) sum(x > 0))
+  plot(n_umis, n_genes, main=paste(sample_id, "\n", ncol(expr), "cells,", nrow(genes), "genes"))
+  dev.off()
+  ## Make barcodes unique:
+  colnames(expr) <- paste0(sample_id, "_", colnames(expr))
+  ## Save:
+  setwd(home_dir)
+  fwrite(data.frame(genes), file=paste0(sample_id, "_genes_QC.tsv"), col.names=F)
+  fwrite(data.frame(colnames(expr)), file=paste0(sample_id, "_barcodes_QC.tsv"), col.names=F)
+  writeMM(expr, file=paste0(sample_id, "_expression_QC.mtx"))
+})
 ```
 
 Merge QC samples into single expression matrix:
-```{r}
+```{r, eval=F}
 setwd("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/counts/samples")
-# expr_paths <- list.files(path=getwd(), pattern=".mtx", full.names=T, recursive=F)
-# expr_list <- lapply(1:length(expr_paths), function(i){
-#   expr <- readMM(expr_paths[i])
-#   expr <- as(expr, "matrix")
-#   genes <- fread(gsub("expression_QC.mtx", "genes_QC.tsv", expr_paths[i]), header=F, data.table=F)
-#   barcodes <- fread(gsub("expression_QC.mtx", "barcodes_QC.tsv", expr_paths[i]), header=F, data.table=F)
-#   if(any(duplicated(genes[,c(2)]))){
-#     mean_expr <- genes %>%
-#       dplyr::mutate(Idx=1:n(), Mean=rowMeans(expr)) %>%
-#       dplyr::group_by(V2) %>%
-#       dplyr::slice_max(order_by=Mean, with_ties=F)
-#     expr <- expr[mean_expr$Idx,]
-#     genes <- genes[mean_expr$idx,]
-#   }
-#   colnames(expr) <- barcodes[,c(1)]
-#   return(data.frame(Gene=genes[,c(2)], expr))
-# })
-# 
-# expr_merge <- Reduce(f=function(x, y){
-#   merge(x, y, by="Gene")
-# }, expr_list)
-# 
-# fwrite(expr_merge, file="../expression_QC.csv")
+expr_paths <- list.files(path=getwd(), pattern=".mtx", full.names=T, recursive=F)
+expr_list <- lapply(1:length(expr_paths), function(i){
+  expr <- readMM(expr_paths[i])
+  expr <- as(expr, "matrix")
+  genes <- fread(gsub("expression_QC.mtx", "genes_QC.tsv", expr_paths[i]), header=F, data.table=F)
+  barcodes <- fread(gsub("expression_QC.mtx", "barcodes_QC.tsv", expr_paths[i]), header=F, data.table=F)
+  if(any(duplicated(genes[,c(2)]))){
+    mean_expr <- genes %>%
+      dplyr::mutate(Idx=1:n(), Mean=rowMeans(expr)) %>%
+      dplyr::group_by(V2) %>%
+      dplyr::slice_max(order_by=Mean, with_ties=F)
+    expr <- expr[mean_expr$Idx,]
+    genes <- genes[mean_expr$idx,]
+  }
+  colnames(expr) <- barcodes[,c(1)]
+  return(data.frame(Gene=genes[,c(2)], expr))
+})
+
+expr_merge <- Reduce(f=function(x, y){
+  merge(x, y, by="Gene")
+}, expr_list)
+
+fwrite(expr_merge, file="../expression_QC.csv")
 ```
 
 ## Annotate cell types
@@ -166,12 +172,6 @@ Visualize reads and features per sample:
 ```{r}
 VlnPlot(expr, group.by = "Label", features = "nFeature_RNA", pt.size = 0.1)
 VlnPlot(expr, group.by = "Label", features = "percent.mt", pt.size = 0.1)
-# pdf(paste0("expr_nFeature_RNA.pdf"), width=12, height=7)
-# VlnPlot(expr, group.by = "Label", features = "nFeature_RNA", pt.size = 0.1)
-# dev.off()
-# pdf(paste0("expr_percent_mt.pdf"), width=12, height=7)
-# VlnPlot(expr, group.by = "Label", features = "percent.mt", pt.size = 0.1)
-# dev.off()
 ```
 
 How many cells per experimental group?
@@ -203,7 +203,7 @@ expr <- CellCycleScoring(expr, s.features=s.genes, g2m.features=g2m.genes, set.i
 
 Integrating samples:
 Ref: https://satijalab.org/seurat/articles/integration_introduction.html
-```{r}
+```{r, include=F}
 split <- SplitObject(expr, split.by="Label")
 split <- lapply(X=split, FUN=function(x){
   set.seed(123)
@@ -254,13 +254,12 @@ DimPlot(expr_int, reduction = "umap", label = TRUE, repel = TRUE, group.by = 'cu
 ```
 
 Get cluster markers:
-```{r}
-# expr_int <- PrepSCTFindMarkers(expr_int, assay="SCT")
-# markers <- FindAllMarkers(expr_int, assay="SCT")
-# markers %>% 
-#   dplyr::group_by(cluster) %>% 
-#   dplyr::slice_head(n=15) %>%
-#   as.data.frame()
+```{r, eval=F}
+expr_int <- PrepSCTFindMarkers(expr_int, assay="SCT")
+markers <- FindAllMarkers(expr_int, assay="SCT")
+markers %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::slice_head(n=15)
 ```
 
 Calculate no./fraction of cells across cell types and experimental conditions:
