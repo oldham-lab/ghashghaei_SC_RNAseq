@@ -13,6 +13,4 @@ pval_cut <- 1e-20
 
 expr$Cluster <- expr$customclassif
 
-project_modules(projectname, expr, fm_dir, expr_type, pval_cut, n_genes)
-
 project_modules_rel_group(projectname, expr, fm_dir, expr_type, pval_cut, n_genes)

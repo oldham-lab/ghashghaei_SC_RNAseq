@@ -4,11 +4,6 @@ author: "Rebecca Eliscu"
 date: "`r Sys.Date()`"
 ---
 
-# E17
-
-## QC for count data per sample
-### Note: Using 'raw' CellRanger outputs for this step
-
 Setup:
 ```{r}
 library(dplyr)
@@ -22,7 +17,8 @@ options(future.globals.maxSize=Inf)
 plan(multicore, workers=10)
 ```
 
-### QC steps:
+## Step 1: QC for count data
+
 ### 1) Remove cells with < 1,000 UMIs
 ### 2) Remove cells with > 10% mitochondrial reads
 ### 3) Remove cells expressing < 1,000 genes
@@ -36,7 +32,7 @@ mito_genes <- fread("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/counts/Mo
 mito_genes <- mito_genes[is.element(mito_genes$TrainingDataset, "Tmito"),]
 ```
 
-CellRanger output directory (per sample):
+CellRanger output directories:
 ```{r}
 samples <- list.dirs(path="/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/aligned_reads", recursive=F)
 ```
@@ -70,7 +66,6 @@ future_lapply(1:length(samples), function(i){
   n_genes <- apply(expr, 2, function(x) sum(x > 0))
   expr <- expr[,n_genes >= 1000]
   n_genes <- apply(expr, 2, function(x) sum(x > 0))
-  # hist(n_genes, breaks=100, main=paste(sample_id, "\n", ncol(expr), "cells (>= 1000 genes/cell)"))
   ## 4) Remove cells > .999 percentile of # expressed genes:
   expr <- expr[,n_genes <= quantile(n_genes, .999)]
   ## 5) Remove cells with "novelty" < .8
@@ -97,7 +92,7 @@ future_lapply(1:length(samples), function(i){
 })
 ```
 
-Merge QC samples into single expression matrix:
+Merge samples into single expression matrix:
 ```{r, eval=F}
 setwd("/mnt/bdata/rebecca/collabs/ghashghaei/SC_expr/E17/counts/samples")
 expr_paths <- list.files(path=getwd(), pattern=".mtx", full.names=T, recursive=F)
@@ -125,7 +120,7 @@ expr_merge <- Reduce(f=function(x, y){
 fwrite(expr_merge, file="../expression_QC.csv")
 ```
 
-## Annotate cell types
+## Step 2: Annotate cell types
 ### Ref: https://satijalab.org/seurat/articles/sctransform_v2_vignette.html
 
 Set up:
@@ -203,8 +198,9 @@ expr <- CellCycleScoring(expr, s.features=s.genes, g2m.features=g2m.genes, set.i
 
 Integrating samples:
 Ref: https://satijalab.org/seurat/articles/integration_introduction.html
-```{r, include=F}
-split <- SplitObject(expr, split.by="Label")
+```{r}
+suppressMessages({
+  split <- SplitObject(expr, split.by="Label")
 split <- lapply(X=split, FUN=function(x){
   set.seed(123)
   x <- SCTransform(x, vars.to.regress=c('percent.mt'), vst.flavor="v2") # 'nFeature_RNA', 'nCount_RNA'
@@ -218,6 +214,7 @@ expr_int <- RunUMAP(expr_int, reduction="pca", dims=1:30)
 expr_int <- FindNeighbors(expr_int, reduction="pca", dims=1:30)
 res <- .7
 expr_int <- FindClusters(expr_int, resolution=res)
+})
 
 ## Visualize clusters:
 DimPlot(expr_int, reduction="umap", pt.size=.3, label=T)
@@ -338,12 +335,12 @@ DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", split.by="cust
 ```
 
 Save:
-```{r}
-# fwrite(n_cells_per_group, file="cells_per_experimental_group_E17.csv")
-# fwrite(n_cells_per_cycle, file="cells_per_phase_E17.csv")
-# fwrite(n_cells_per_ct, file="cells_per_cell_type_E17.csv")
-# fwrite(n_cts_per_group, file="cell_types_per_experimental_group_E17.csv")
-# fwrite(n_cycles_per_group, file="cycles_per_experimental_group_E17.csv")
-# fwrite(n_cycles_per_ct, file="cycles_per_cell_type_E17.csv")
-# saveRDS(expr_int, file="expr_SC_E17.RDS")
+```{r, eval=F}
+fwrite(n_cells_per_group, file="cells_per_experimental_group_E17.csv")
+fwrite(n_cells_per_cycle, file="cells_per_phase_E17.csv")
+fwrite(n_cells_per_ct, file="cells_per_cell_type_E17.csv")
+fwrite(n_cts_per_group, file="cell_types_per_experimental_group_E17.csv")
+fwrite(n_cycles_per_group, file="cycles_per_experimental_group_E17.csv")
+fwrite(n_cycles_per_ct, file="cycles_per_cell_type_E17.csv")
+saveRDS(expr_int, file="expr_SC_E17.RDS")
 ```

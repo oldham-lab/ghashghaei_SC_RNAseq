@@ -9,6 +9,7 @@ library(ggpattern)
 library(RColorBrewer)
 
 expr <- readRDS("../../cluster/expr_SC_P5.RDS")
+DefaultAssay(expr) <- "RNA"
 
 expr$Genotype <- gsub("het", "F+", expr$Genotype)
 expr$Genotype <- gsub("hom", "FF", expr$Genotype)
@@ -113,3 +114,45 @@ print(
 
 dev.off()
 
+# df <- expr[[]] %>%
+#   dplyr::group_by(Phase) %>%
+#   dplyr::mutate(Group=paste(Genotype, Protein)) %>%
+#   dplyr::group_by(Group) %>%
+#   dplyr::mutate(Group_Total=n()) %>%
+#   dplyr::group_by(Phase, Group, Background, EGFR_Status) %>%
+#   dplyr::summarise(Frac=n()/unique(Group_Total))
+# 
+# print(
+#   ggplot(df, aes(x=Group, y=Frac, fill=EGFR_Status)) +
+#     geom_bar(stat="identity") +
+#     # geom_col_pattern(aes(pattern=Background),
+#     #                  position=position_dodge(0),
+#     #                  color="black",
+#     #                  pattern_color="white",
+#     #                  pattern_density=.04,
+#     #                  pattern_spacing=.04,
+#     #                  pattern_key_scale_factor=.3) +
+#     theme_minimal() +
+#     theme(plot.subtitle=element_text(margin=margin(b=7)),
+#           legend.title=element_text(face="bold"),
+#           legend.position="bottom",
+#           legend.direction="horizontal",
+#           axis.title.x=element_blank(),
+#           axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+#           axis.ticks.x=element_line(color="black"),
+#           axis.title.y=element_text(margin=margin(r=15)),
+#           plot.margin=margin(.5, .5, .5, .5, "cm"),
+#           panel.grid.major.x=element_blank(),
+#           panel.grid.minor.y=element_line(linewidth=.2, color="lightgrey"),
+#           panel.grid.major.y=element_line(linewidth=.2, color="lightgrey")) +
+#     labs(title="P5 single-cell RNA-seq", 
+#          subtitle=paste(comma(nrow(expr)), "total cells")) +
+#     ylab("Fraction of cells\n(per experimental group)") +
+#     scale_fill_manual(values=brewer.pal(3, "Set2")) +
+#     guides(fill=guide_legend(title="Egfr status"),
+#            pattern=guide_legend(title="Background")) +
+#     facet_wrap(. ~ Phase, nrow=1, strip.position="bottom") +
+#     theme(strip.text.x=element_text(size=9),
+#           strip.placement="outside",
+#           panel.spacing.x=unit(0, "lines")) 
+# )

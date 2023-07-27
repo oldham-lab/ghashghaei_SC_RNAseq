@@ -181,6 +181,7 @@ n_cycles_per_ct <- metadata  %>%
 pdf("phase_per_cell_type.pdf", width=14, height=7)
 DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", shuffle=T)
 DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", split.by="customclassif", shuffle=T, ncol=3)
+DimPlot(expr_int, reduction="umap", pt.size=.3, group.by="Phase", split.by="Group", shuffle=T)
 dev.off()
 
 # Save:
