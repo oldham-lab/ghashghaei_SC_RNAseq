@@ -2,6 +2,7 @@
 title: "P5 SC-RNA-seq preprocessing and cell annotation"
 author: "Rebecca Eliscu"
 date: "`r Sys.Date()`"
+output: rmarkdown::github_document
 ---
 
 Setup:
@@ -285,13 +286,13 @@ n_cells_per_ct
 n_cts_per_group <- metadata  %>%
   dplyr::group_by(Group) %>%
   dplyr::mutate(Total=n()) %>%
-  dplyr::group_by(Group, Condition, customclassif) %>%
+  dplyr::group_by(Group, EGFR_Status, customclassif) %>%
   dplyr::summarise(
     No.CT_Nuclei=n(),
     No.Total_Nuclei=unique(Total),
     Percent_CT_Nuclei=unique(n()/Total)*100,
   ) %>%
-  dplyr::arrange(customclassif, Condition, Group)
+  dplyr::arrange(customclassif, EGFR_Status, Group)
 n_cts_per_group
 ```
 
@@ -299,13 +300,13 @@ n_cts_per_group
 n_cycles_per_group <- metadata  %>%
   dplyr::group_by(Group) %>%
   dplyr::mutate(Total=n()) %>%
-  dplyr::group_by(Group, Condition, Phase) %>%
+  dplyr::group_by(Group, EGFR_Status, Phase) %>%
   dplyr::summarise(
     No.Phase_Nuclei=n(),
     No.Total_Nuclei=unique(Total),
     Percent_Phase_Nuclei=unique(n()/Total)*100,
   ) %>%
-  dplyr::arrange(Phase, Group, Condition)
+  dplyr::arrange(Phase, Group, EGFR_Status)
 n_cycles_per_group
 ```
 

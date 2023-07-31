@@ -68,7 +68,7 @@ print(
           panel.grid.minor.y=element_line(linewidth=.2, color="lightgrey"),
           panel.grid.major.y=element_line(linewidth=.2, color="lightgrey")) +
     labs(title="E17.5 single-cell RNA-seq", 
-         subtitle=paste(comma(nrow(expr)), "total cells")) +
+         subtitle=paste(comma(ncol(expr)), "total cells")) +
     ylab("Fraction of cells\n(per experimental group)") +
     scale_fill_manual(values=brewer.pal(3, "Set2")) +
     guides(fill=guide_legend(title="Egfr status"), 

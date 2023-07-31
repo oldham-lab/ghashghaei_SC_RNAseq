@@ -2,6 +2,7 @@
 title: "E17.5 SC-RNA-seq preprocessing and cell annotation"
 author: "Rebecca Eliscu"
 date: "`r Sys.Date()`"
+output: rmarkdown::github_document
 ---
 
 Setup:
